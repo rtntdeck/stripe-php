@@ -25,6 +25,8 @@ class CurlClient implements ClientInterface
 
     private $timeout = self::DEFAULT_TIMEOUT;
     private $connectTimeout = self::DEFAULT_CONNECT_TIMEOUT;
+    
+    public $rheaders = array();
 
     public function setTimeout($seconds)
     {
@@ -49,6 +51,16 @@ class CurlClient implements ClientInterface
     }
 
     // END OF USER DEFINED TIMEOUTS
+    
+    public function customHeaderCallback ($curl, $header_line){
+        if (strpos($header_line, ":") === false) {
+                return strlen($header_line);
+            }
+            list($key, $value) = explode(":", trim($header_line), 2);
+            //$rheaders[trim($key)] = trim($value);
+            $this->rheaders[trim($key)] = trim($value);
+            return strlen($header_line);
+    }
 
     public function request($method, $absUrl, $headers, $params, $hasFile)
     {
@@ -80,7 +92,7 @@ class CurlClient implements ClientInterface
         }
 
         // Create a callback to capture HTTP headers for the response
-        $rheaders = array();
+        //$rheaders = array();
         $headerCallback = function ($curl, $header_line) use (&$rheaders) {
             // Ignore the HTTP request line (HTTP/1.1 200 OK)
             if (strpos($header_line, ":") === false) {
@@ -97,7 +109,8 @@ class CurlClient implements ClientInterface
         $opts[CURLOPT_CONNECTTIMEOUT] = $this->connectTimeout;
         $opts[CURLOPT_TIMEOUT] = $this->timeout;
         $opts[CURLOPT_RETURNTRANSFER] = true;
-        $opts[CURLOPT_HEADERFUNCTION] = $headerCallback;
+        //$opts[CURLOPT_HEADERFUNCTION] = $headerCallback;
+        $opts[CURLOPT_HEADERFUNCTION] = array($this, 'customHeaderCallback');
         $opts[CURLOPT_HTTPHEADER] = $headers;
         if (!Stripe::$verifySslCerts) {
             $opts[CURLOPT_SSL_VERIFYPEER] = false;
@@ -146,7 +159,7 @@ class CurlClient implements ClientInterface
 
         $rcode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
         curl_close($curl);
-        return array($rbody, $rcode, $rheaders);
+        return array($rbody, $rcode, $this->rheaders);
     }
 
     /**
